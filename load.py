@@ -42,6 +42,8 @@ def loads_get_post():
         return '', 204
     else:
         return 'Method not recognized'
+    # new comment
+
     # if request.method == 'POST':
     #     content = request.get_json()
     #     new_guest = datastore.entity.Entity(key=client.key(constants.loads))
