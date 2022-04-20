@@ -9,7 +9,7 @@ bp = Blueprint('boats1', __name__, url_prefix='/boats')
 
 
 # ***** REMEmBER to DELETE DELETE ******
-@bp.route('', methods=['POST','GET','DELETE'])
+@bp.route('', methods=['POST', 'GET', 'DELETE'])
 def boats_get_post1():
     if request.method == 'POST':
         content = request.get_json()
@@ -17,18 +17,19 @@ def boats_get_post1():
             return {"Error": "The request object is missing at least one of the required attributes"}, 400
         new_boat = datastore.entity.Entity(key=client.key(constants.boats1))
         new_boat.update({"name": content["name"], "type": content["type"],
-                         "length": content["length"], "loads": [], "self": None})
+                         "length": content["length"], "loads": []})
         client.put(new_boat)
         self = request.base_url + '/' + str(new_boat.key.id)
-        new_boat.update({"self": self})
-        client.put(new_boat)
         return {"id": new_boat.key.id, "name": content["name"], "type": content["type"],
-                        "length": content["length"], "loads": [], "self": self}, 201
+                "length": content["length"], "loads": [], "self": self}, 201
     elif request.method == 'GET':
         query = client.query(kind=constants.boats1)
         results = list(query.fetch())
         for e in results:
             e["id"] = e.key.id
+            e["self"] = request.base_url + '/' + str(e["id"])
+            for i in e["loads"]:
+                i["self"] = request.host_url + 'loads/' + str(i["id"])
         return json.dumps(results), 200
     elif request.method == 'DELETE':
         query = client.query(kind=constants.boats1)
@@ -70,7 +71,7 @@ def boats_get_post1():
     #     return 'Method not recogonized'
 
 
-@bp.route('/<id>', methods=['GET','DELETE'])
+@bp.route('/<id>', methods=['GET', 'DELETE'])
 def boats_get_delete(id):
     if request.method == 'DELETE':
         key = client.key(constants.boats1, int(id))
@@ -92,6 +93,9 @@ def boats_get_delete(id):
         if boat is None:
             return {"Error": "No boat with this boat_id exists"}, 404
         boat["id"] = boat.key.id
+        boat["self"] = request.host_url + 'boats/' + str(boat["id"])
+        for i in boat["loads"]:
+            i["self"] = request.host_url + 'loads/' + str(i["id"])
         return json.dumps(boat), 200
     else:
         return 'Method not recognized'
@@ -110,32 +114,37 @@ def boats_get_delete(id):
     # else:
     #     return 'Method not recogonized'
 
-@bp.route('/<lid>/guests/<gid>', methods=['PUT','DELETE'])
-def add_delete_reservation(lid,gid):
+
+@bp.route('/<boat_id>/loads/<load_id>', methods=['PUT', 'DELETE'])
+def add_delete_load_to_boat(boat_id, load_id):
     if request.method == 'PUT':
-        lodging_key = client.key(constants.lodgings, int(lid))
-        lodging = client.get(key=lodging_key)
-        guest_key = client.key(constants.guests, int(gid))
-        guest = client.get(key=guest_key)
-        if 'guests' in lodging.keys():
-            lodging['guests'].append(guest.id)
-        else:
-            lodging['guests'] = [guest.id]
-        client.put(lodging)
-        return('',200)
+        boat_key = client.key(constants.boats1, int(boat_id))
+        boat = client.get(key=boat_key)  
+        load_key = client.key(constants.loads, int(load_id))
+        load = client.get(key=load_key)
+        if (boat is None) or (load is None):
+            return {"Error": "The specified boat and/or load does not exist"}, 404
+        if load['carrier'] is not None:
+            return {"Error": "The load is already loaded on another boat"}, 403
+        boat['loads'].append({"id": load.id})
+        load['carrier'] = {"id": boat.id}
+        client.put(boat)
+        client.put(load)
+        return ('', 204)
     if request.method == 'DELETE':
-        lodging_key = client.key(constants.lodgings, int(lid))
-        lodging = client.get(key=lodging_key)
-        if 'guests' in lodging.keys():
-            lodging['guests'].remove(int(gid))
-            client.put(lodging)
-        return('',200)
+        boat_key = client.key(constants.boats1, int(boat_id))
+        boat = client.get(key=boat_key)
+        if 'loads' in boat.keys():
+            boat['loads'].remove(int(load_id))
+            client.put(boat)
+        return ('', 200)
+
 
 @bp.route('/<id>/guests', methods=['GET'])
 def get_reservations(id):
     lodging_key = client.key(constants.lodgings, int(id))
     lodging = client.get(key=lodging_key)
-    guest_list  = []
+    guest_list = []
     if 'guests' in lodging.keys():
         for gid in lodging['guests']:
             guest_key = client.key(constants.guests, int(gid))
