@@ -25,13 +25,25 @@ def loads_get_post():
                 "creation_date": content["creation_date"], "carrier": None, "self": self}, 201
     elif request.method == 'GET':
         query = client.query(kind=constants.loads)
-        results = list(query.fetch())
+        q_limit = int(request.args.get('limit', '3'))
+        q_offset = int(request.args.get('offset', '0'))
+        l_iterator = query.fetch(limit=q_limit, offset=q_offset)
+        pages = l_iterator.pages
+        results = list(next(pages))
+        if l_iterator.next_page_token:
+            next_offset = q_offset + q_limit
+            next_url = request.base_url + "?limit=" + str(q_limit) + "&offset=" + str(next_offset)
+        else:
+            next_url = None
         for e in results:
             e["id"] = e.key.id
             e["self"] = request.base_url + '/' + str(e["id"])
             if e["carrier"] is not None:
                 e["carrier"]["self"] = request.host_url + 'boats/' + str(e["carrier"]["id"])
-        return json.dumps(results), 200
+        output = {"loads": results}
+        if next_url:
+            output["next"] = next_url
+        return json.dumps(output), 200
     elif request.method == 'DELETE':
         query = client.query(kind=constants.loads)
         results = list(query.fetch())
@@ -43,49 +55,22 @@ def loads_get_post():
         return '', 204
     else:
         return 'Method not recognized'
-    # new comment
-
-    # if request.method == 'POST':
-    #     content = request.get_json()
-    #     new_guest = datastore.entity.Entity(key=client.key(constants.loads))
-    #     new_guest.update({"name": content["name"]})
-    #     client.put(new_guest)
-    #     return str(new_guest.key.id)
-    # elif request.method == 'GET':
-    #     query = client.query(kind=constants.loads)
-    #     q_limit = int(request.args.get('limit', '2'))
-    #     q_offset = int(request.args.get('offset', '0'))
-    #     g_iterator = query.fetch(limit= q_limit, offset=q_offset)
-    #     pages = g_iterator.pages
-    #     results = list(next(pages))
-    #     if g_iterator.next_page_token:
-    #         next_offset = q_offset + q_limit
-    #         next_url = request.base_url + "?limit=" + str(q_limit) + "&offset=" + str(next_offset)
-    #     else:
-    #         next_url = None
-    #     for e in results:
-    #         e["id"] = e.key.id
-    #     output = {"guests": results}
-    #     if next_url:
-    #         output["next"] = next_url
-    #     return json.dumps(output)
 
 
 @bp.route('/<id>', methods=['GET', 'DELETE'])
 def loads_get_delete(id):
     if request.method == 'DELETE':
-        key = client.key(constants.loads, int(id))
-        load_key = client.get(key=key)
-        if load_key is None:
+        load_key = client.key(constants.loads, int(id))
+        load = client.get(key=load_key)
+        if load is None:
             return {"Error": "No load with this load_id exists"}, 404
-        # query = client.query(kind=constants.slips)
-        # results = list(query.add_filter('current_boat', '=', int(id)).fetch())
-        # if results:
-        #     slip_key = client.key(constants.slips, results[0].key.id)
-        #     slip = client.get(key=slip_key)
-        #     slip.update({"current_boat": None})
-        #     client.put(slip)
-        client.delete(key)  
+        boat_key = client.key(constants.boats1, int(load['carrier']['id']))
+        boat = client.get(key=boat_key)
+        for i in boat['loads']:
+            if i['id'] == int(id):
+                boat['loads'].remove(i)
+                client.put(boat)
+        client.delete(load_key)
         return '', 204
     elif request.method == 'GET':
         load_key = client.key(constants.loads, int(id))
