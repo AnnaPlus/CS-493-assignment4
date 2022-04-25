@@ -8,8 +8,7 @@ client = datastore.Client()
 bp = Blueprint('boats1', __name__, url_prefix='/boats')
 
 
-# ***** REMEmBER to DELETE DELETE ******
-@bp.route('', methods=['POST', 'GET', 'DELETE'])
+@bp.route('', methods=['POST', 'GET'])
 def boats_get_post1():
     if request.method == 'POST':
         content = request.get_json()
@@ -26,7 +25,7 @@ def boats_get_post1():
         query = client.query(kind=constants.boats1)
         q_limit = int(request.args.get('limit', '3'))
         q_offset = int(request.args.get('offset', '0'))
-        l_iterator = query.fetch(limit= q_limit, offset=q_offset)
+        l_iterator = query.fetch(limit=q_limit, offset=q_offset)
         pages = l_iterator.pages
         results = list(next(pages))
         if l_iterator.next_page_token:
@@ -43,15 +42,6 @@ def boats_get_post1():
         if next_url:
             output["next"] = next_url
         return json.dumps(output), 200
-    elif request.method == 'DELETE':
-        query = client.query(kind=constants.boats1)
-        results = list(query.fetch())
-        for e in results:
-            key = e.key.id
-            c_key = client.key(constants.boats1, int(key))
-            print(c_key)
-            client.delete(c_key)
-        return '', 204
     else:
         return 'Method not recognized'
 
@@ -100,7 +90,7 @@ def add_delete_load_to_boat(boat_id, load_id):
         load['carrier'] = {"id": boat.id}
         client.put(boat)
         client.put(load)
-        return ('', 204)
+        return '', 204
     if request.method == 'DELETE':
         load_on_boat = False
         boat_key = client.key(constants.boats1, int(boat_id))
@@ -118,7 +108,7 @@ def add_delete_load_to_boat(boat_id, load_id):
         load['carrier'] = None
         client.put(boat)
         client.put(load)
-        return ('', 204)
+        return '', 204
 
 
 @bp.route('/<boat_id>/loads', methods=['GET'])
